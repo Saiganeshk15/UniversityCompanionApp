@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Button, FlatList, TouchableOpacity, Modal, TextInput, StyleSheet, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getAssignments, createAssignment, updateAssignment, deleteAssignment, completeAssignemnt } from '../src/api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Assignment = {
     id: number;
@@ -26,19 +27,21 @@ export default function AssignmentsScreen() {
         if (courseId) {
             fetchAssignments();
         }
-    }, [courseId,]);
-    useEffect(() => {
-        if (Platform.OS === 'web') {
-            document.title = "Courses";
-        }
-    }, []);
+    }, [courseId]);
 
     const fetchAssignments = async () => {
         try {
             const data = await getAssignments(Number(courseId));
             setAssignments(data);
+            await AsyncStorage.setItem(`assignments_${courseId}`, JSON.stringify(data));
         } catch (error) {
             console.error('Failed to fetch assignments:', error);
+            const cachedData = await AsyncStorage.getItem(`assignments_${courseId}`);
+            if (cachedData) {
+                setAssignments(JSON.parse(cachedData));
+            } else {
+                alert('Failed to load assignments and no cached data found.');
+            }
         }
     };
 
@@ -61,14 +64,15 @@ export default function AssignmentsScreen() {
             console.error('Failed to add assignment:', error);
         }
     };
+
     const handleUpdate = () => {
-        if (assignmentTitle == item.title && dueDate == item.due_date.split('T')[0]) {
+        if (assignmentTitle === item.title && dueDate === item.due_date.split('T')[0]) {
             alert('Please change fields to update');
             return;
         }
         item.title = assignmentTitle;
         item.due_date = dueDate;
-        try{
+        try {
             updateAssignment(item);
         } catch (e) {
             console.error("Failed to update assignment details", e);
@@ -76,30 +80,31 @@ export default function AssignmentsScreen() {
         setModal1Visible(false);
     };
 
-    const handleUpdates = () => {
-        console.log("kjdfk");
-    }
-
     return (
         <View style={styles.container}>
             <FlatList
-                data={assignments}
+                data={assignments.sort((a, b) => new Date(a.due_date) - new Date(b.due_date))}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
-                    <View id={item.id.toString()} style={item.status === 'pending' ? styles.assignmentContainer : styles.assignmentCompletedContainer}>
-                        <Text style={styles.assignmentTitle}>{item.title}</Text>
-                        <Text style={styles.dueDate}>Due Date: {item.due_date.split('T')[0]}</Text>
-                        <Text style={styles.status}>Status: {item.status}</Text>
-                        <View style={styles.buttonsContainer}>
-                            <TouchableOpacity onPress={() => {setModal1Visible(true); setItem(item); 
-                                setAssignmentTitle(item.title); setDueDate(item.due_date.split('T')[0])}}><Text style={styles.buttons}>Update</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={async () => {await deleteAssignment(item.id); fetchAssignments()}}><Text style={styles.buttons}>Delete</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={async () => {await completeAssignemnt(item.id); fetchAssignments()}}><Text style={styles.buttons}>{item.status === 'pending' ? "Complete" : "Completed"} </Text></TouchableOpacity>
-                        </View>
+                <View id={item.id.toString()} style={item.status === 'pending' ? styles.assignmentContainer : styles.assignmentCompletedContainer}>
+                    <Text style={styles.assignmentTitle}>{item.title}</Text>
+                    <Text style={styles.dueDate}>Due Date: {item.due_date.split('T')[0]}</Text>
+                    <Text style={styles.status}>Status: {item.status}</Text>
+                    <View style={styles.buttonsContainer}>
+                        <TouchableOpacity onPress={() => { setModal1Visible(true); setItem(item); setAssignmentTitle(item.title); setDueDate(item.due_date.split('T')[0]) }}>
+                            <Text style={styles.buttons}>Update</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={async () => { await deleteAssignment(item.id); fetchAssignments() }}>
+                            <Text style={styles.buttons}>Delete</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={async () => { await completeAssignemnt(item.id); fetchAssignments() }}>
+                            <Text style={styles.buttons}>{item.status === 'pending' ? "Complete" : "Completed"} </Text>
+                        </TouchableOpacity>
                     </View>
+                </View>
                 )}
             />
-            <Button title="Add Assignment" onPress={() => {setModalVisible(true); setAssignmentTitle(''); setDueDate('')}} />
+            <Button title="Add Assignment" onPress={() => { setModalVisible(true); setAssignmentTitle(''); setDueDate('') }} />
 
             <Modal
                 animationType="slide"
@@ -175,7 +180,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 3,
         elevation: 4,
-      },
+    },
     assignmentContainer: {
         padding: 10,
         marginBottom: 10,
@@ -188,7 +193,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 3,
         elevation: 4,
-      },
+    },
     assignmentTitle: {
         fontWeight: 'bold',
         fontSize: 16,

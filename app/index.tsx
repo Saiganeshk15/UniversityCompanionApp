@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Button, FlatList, TouchableOpacity, Modal, TextInput, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getCourses, createCourse, updateCourse, deleteCourse } from '../src/api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CourseListScreen() {
     const [courses, setCourses] = useState([]);
@@ -17,6 +18,7 @@ export default function CourseListScreen() {
     useEffect(() => {
         fetchCourses();
     }, []);
+
     useEffect(() => {
         if (Platform.OS === 'web') {
             document.title = "Courses";
@@ -27,8 +29,15 @@ export default function CourseListScreen() {
         try {
             const data = await getCourses();
             setCourses(data);
+            await AsyncStorage.setItem('courses', JSON.stringify(data));
         } catch (error) {
             console.error('Failed to fetch courses:', error);
+            const cachedCourses = await AsyncStorage.getItem('courses');
+            if (cachedCourses) {
+                setCourses(JSON.parse(cachedCourses));
+            } else {
+                alert('No cached data available. Please check your network connection.');
+            }
         }
     };
 
@@ -55,6 +64,7 @@ export default function CourseListScreen() {
             console.error('Failed to add course:', error);
         }
     };
+
     const handleUpdateCourse = async () => {
         if (courseName === course.course_name && professor === course.professor && startDate === course.start_date.split('T')[0] && endDate === course.end_date.split('T')[0]) {
             alert("Change values to update course");
@@ -72,6 +82,7 @@ export default function CourseListScreen() {
         setModal1Visible(false);
         fetchCourses();
     };
+
     const handleDeleteCourse = async (courseId: any) => {
         await deleteCourse(courseId);
         fetchCourses();
@@ -148,7 +159,7 @@ export default function CourseListScreen() {
             >
                 <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add New Course</Text>
+                        <Text style={styles.modalTitle}>Edit Course</Text>
                         <TextInput
                             placeholder="Course Name"
                             value={courseName}
@@ -233,8 +244,8 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 3,
         elevation: 4,
-      },
-      buttonsContainer: {
+    },
+    buttonsContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
         justifyContent: "center",
